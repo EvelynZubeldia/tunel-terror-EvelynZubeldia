@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ouija del aula</title>
+<meta name="description" content="Tablero de ouija funcional hecho con HTML5, CSS3 y JavaScript para la asignatura de Lenguaje de Marcas.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  /* =========================================================
+     DISEÑO: una sala a oscuras con un tablero de roble claro
+     en el centro. Un solo tema (oscuro) elegido a propósito.
+     ========================================================= */
+  :root {
+    color-scheme: dark;
+    /* Colores */
+    --sala: #140e0b;        /* fondo de la habitación */
+    --sala-2: #231812;      /* paneles */
+    --hueso: #eadcc2;       /* texto sobre la sala */
+    --hueso-tenue: #b3a184; /* texto secundario */
+    --tinta: #2a160a;       /* letras pintadas en el tablero */
+    --vela: #eaa64b;        /* luz de vela: acento */
+    --borde: #4e3524;       /* líneas y bordes */
+    /* Tipografía */
+    --f-tablero: "IM Fell English SC", "Iowan Old Style", Georgia, serif;
+    --f-titulo: "IM Fell English", "Iowan Old Style", Georgia, serif;
+    --f-texto: "Spectral", Georgia, "Times New Roman", serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    background-color: var(--sala);
+    background-image: radial-gradient(ellipse 70% 50% at 50% 0%, #2c1d13 0%, transparent 70%);
+    color: var(--hueso);
+    font-family: var(--f-texto);
+    font-size: 17px;
+    line-height: 1.55;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 28px 40px;
+    transition: background-color 1.2s ease;
+  }
+  /* Mientras la ouija responde, la sala se oscurece */
+  body.respondiendo { background-color: #0b0705; }
+
+  .envoltorio { max-width: 1000px; margin-inline: auto; display: grid; gap: 28px; }
+
+  /* ---------- Cabecera ---------- */
+  .cabecera { display: grid; gap: 4px; }
+  .cabecera h1 {
+    font-family: var(--f-titulo);
+    font-weight: 400;
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    line-height: 1.05;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .cabecera h1 em { color: var(--vela); }
+  .cabecera p { margin: 0; color: var(--hueso-tenue); max-width: 62ch; }
+  .eyebrow {
+    font-family: var(--f-tablero);
+    letter-spacing: .14em;
+    font-size: .85rem;
+    color: var(--vela);
+  }
+
+  /* ---------- El tablero ---------- */
+  .tablero {
+    position: relative;               /* la planchette se posiciona respecto a él */
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    display: grid;
+    grid-template-rows: 1.15fr 1fr 1fr .8fr 1fr;
+    padding: 3% 4.5%;
+    border-radius: 34px / 28px;
+    overflow: hidden;
+    user-select: none;
+    /* Madera: vetas + tono base, todo con degradados CSS */
+    background:
+      repeating-linear-gradient(91deg, rgba(70, 35, 12, .10) 0 2px, transparent 2px 11px),
+      repeating-linear-gradient(89deg, rgba(255, 230, 190, .06) 0 1px, transparent 1px 23px),
+      radial-gradient(ellipse 80% 70% at 50% 42%, #d0a66e 0%, #b0804e 55%, #7c5231 100%);
+    box-shadow:
+      inset 0 0 0 7px #3d2516,
+      inset 0 0 0 10px rgba(232, 196, 140, .35),
+      inset 0 0 70px rgba(30, 12, 2, .55),
+      0 30px 70px rgba(0, 0, 0, .7);
+  }
+  @media (max-width: 600px) {
+    .tablero { aspect-ratio: 5 / 4; padding: 4% 3%; }
+  }
+
+  /* Fila superior: SÍ · sol ... luna · NO */
+  .tablero .superior {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-inline: 2%;
+  }
+  .esquina { display: flex; align-items: center; gap: .3em; margin: 0; }
+  .esquina svg { width: 1.1em; height: 1.1em; }
+
+  /* Palabras y letras pintadas */
+  .palabra, .fila li, .numeros li {
+    font-family: var(--f-tablero);
+    color: var(--tinta);
+    text-shadow: 0 1px 0 rgba(255, 235, 200, .35);
+    transition: color .25s ease, text-shadow .25s ease;
+  }
+  .palabra { font-size: clamp(20px, 5.4vw, 54px); line-height: 1; margin: 0; }
+
+  .fila, .numeros {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .fila li {
+    flex: 1; text-align: center;
+    font-size: clamp(15px, 4.6vw, 54px);
+    line-height: 1;
+    /* Arco clásico: los extremos bajan y giran. Usa sin() de CSS.
+       Cada <li> lleva su posición en la variable --i. */
+    --t: calc(var(--i) / (var(--n) - 1));
+    transform:
+      translateY(calc(var(--arco) * (1 - sin(calc(var(--t) * 180deg)))))
+      rotate(calc((var(--t) - .5) * var(--giro)));
+  }
+  .fila-1 { --n: 13; --arco: .55em; --giro: 34deg; }
+  .fila-2 { --n: 14; --arco: .45em; --giro: 30deg; }
+  .numeros { padding-inline: 8%; }
+  .numeros li { flex: 1; text-align: center; font-size: clamp(14px, 3.8vw, 42px); }
+
+  .inferior { display: flex; align-items: center; justify-content: center; }
+
+  /* Letra bajo la lente */
+  .tablero .activa {
+    color: #fff1d0;
+    text-shadow: 0 0 6px var(--vela), 0 0 18px var(--vela), 0 0 32px rgba(234, 166, 75, .6);
+  }
+
+  /* Luz de vela que tiembla sobre el tablero */
+  .tablero::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 60% 55% at 50% 30%, rgba(255, 190, 110, .18), transparent 70%);
+    animation: vela 3.2s ease-in-out infinite alternate;
+  }
+  @keyframes vela { 0% { opacity: .65; } 40% { opacity: 1; } 70% { opacity: .8; } 100% { opacity: .95; } }
+
+  /* ---------- La planchette ---------- */
+  .planchette {
+    position: absolute; left: 0; top: 0; z-index: 2;
+    width: clamp(62px, 13%, 124px);
+    aspect-ratio: 100 / 120;
+    padding: 0; border: 0; background: none;
+    cursor: grab; touch-action: none;
+    filter: drop-shadow(0 12px 12px rgba(0, 0, 0, .55));
+    transition: transform var(--dur, 1000ms) cubic-bezier(.5, .05, .25, 1);
+  }
+  .planchette:active { cursor: grabbing; }
+  .planchette:focus-visible { outline: 3px dashed var(--vela); outline-offset: 6px; border-radius: 40%; }
+  .planchette svg { display: block; width: 100%; height: 100%; }
+
+  /* ---------- Debajo del tablero ---------- */
+  .consulta { display: grid; gap: 18px; justify-items: center; text-align: center; }
+  .visualmente-oculto {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+
+  /* Botón del espíritu: luz de vela sobre fondo de sala */
+  .invocar {
+    display: inline-flex; align-items: center; gap: .7em;
+    font-family: var(--f-tablero); font-size: clamp(1.1rem, 3.5vw, 1.4rem); letter-spacing: .14em;
+    color: var(--vela);
+    background: radial-gradient(ellipse at 50% 0%, #3a2515 0%, var(--sala-2) 75%);
+    border: 1px solid var(--vela); border-radius: 999px;
+    padding: .7em 1.6em .7em 1.3em;
+    cursor: pointer;
+    box-shadow: 0 0 0 4px rgba(234, 166, 75, .08), 0 0 22px rgba(234, 166, 75, .25), inset 0 0 14px rgba(234, 166, 75, .12);
+    transition: color .25s ease, box-shadow .25s ease, transform .15s ease;
+  }
+  .invocar svg { width: 1.1em; height: 1.5em; filter: drop-shadow(0 0 6px var(--vela)); animation: llama 1.6s ease-in-out infinite alternate; transform-origin: 50% 90%; }
+  .invocar:hover {
+    color: #fff1d0;
+    box-shadow: 0 0 0 4px rgba(234, 166, 75, .15), 0 0 36px rgba(234, 166, 75, .55), inset 0 0 18px rgba(234, 166, 75, .25);
+  }
+  .invocar:active { transform: scale(.97); }
+  @keyframes llama { 0% { transform: scaleY(.92) rotate(-3deg); } 100% { transform: scaleY(1.06) rotate(3deg); } }
+
+  /* El pergamino: dos rodillos de madera y una hoja que se desenrolla */
+  .pergamino {
+    width: min(100%, 540px);
+    display: grid;
+    filter: drop-shadow(0 14px 20px rgba(0, 0, 0, .6));
+  }
+  .rodillo {
+    position: relative; z-index: 1;
+    height: 20px;
+    width: calc(100% + 28px); margin-inline: -14px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #8a5a33 0%, #5a3720 45%, #34200f 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 220, 170, .35);
+  }
+  /* Tapones en los extremos de cada rodillo */
+  .rodillo::before, .rodillo::after {
+    content: ""; position: absolute; top: -3px; bottom: -3px; width: 12px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #a06c3e, #4a2c16);
+  }
+  .rodillo::before { left: -6px; }
+  .rodillo::after { right: -6px; }
+
+  /* La hoja crece de 0 a su altura real (grid 0fr -> 1fr) */
+  .hoja {
+    display: grid; grid-template-rows: 0fr;
+    margin-inline: 4px;
+  }
+  .hoja-interior {
+    min-height: 0; overflow: hidden;
+    background: radial-gradient(ellipse 90% 80% at 50% 50%, #ecd9ab 0%, #dcc08a 70%, #b98f54 100%);
+    box-shadow: inset 0 0 28px rgba(110, 60, 20, .55), inset 0 0 4px rgba(90, 50, 15, .8);
+  }
+  .pergamino.abierto .hoja { animation: desenrollar 1.6s cubic-bezier(.4, .1, .25, 1) forwards; }
+  @keyframes desenrollar { from { grid-template-rows: 0fr; } to { grid-template-rows: 1fr; } }
+
+  .mensaje {
+    display: block; padding: 1.1em 1.2em;
+    font-family: var(--f-titulo); font-style: italic;
+    font-size: clamp(1.4rem, 5vw, 2.3rem);
+    line-height: 1.3; text-align: center; text-wrap: balance;
+    color: var(--tinta);
+    text-shadow: 0 1px 0 rgba(255, 240, 210, .4);
+    opacity: 0;
+  }
+  .pergamino.abierto .mensaje { animation: tinta 1.2s ease-out 1.1s forwards; }
+  @keyframes tinta {
+    from { opacity: 0; filter: blur(4px); }
+    to   { opacity: 1; filter: blur(0); }
+  }
+
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--vela); outline-offset: 3px; }
+  .estado { margin: 0; font-size: .92rem; color: var(--hueso-tenue); font-style: italic; min-height: 1.5em; }
+  .ayuda { margin: 0; font-size: .9rem; color: var(--hueso-tenue); }
+  kbd {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .82em;
+    border: 1px solid var(--borde); border-radius: 4px; padding: 0 .35em; background: var(--sala-2);
+  }
+
+  footer { border-top: 1px solid var(--borde); padding-top: 16px; font-size: .88rem; color: var(--hueso-tenue); }
+  footer p { margin: 0; max-width: 70ch; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tablero::after, .invocar svg { animation: none; }
+    .pergamino.abierto .hoja, .pergamino.abierto .mensaje { animation-duration: .01s; animation-delay: 0s; }
+    body { transition: none; }
+  }
+</style>
+</head>
+<body>
+<!-- =========================================================
+     ESTRUCTURA SEMÁNTICA
+     header  → título de la página
+     main    → contenido principal (tablero + consulta + registro)
+     section → cada bloque con su propio encabezado
+     footer  → créditos y nota
+     ========================================================= -->
+<div class="envoltorio">
+
+  <header class="cabecera">
+    <span class="eyebrow">Lenguaje de Marcas · Especial Halloween</span>
+    <h1>Ouija del <em>aula</em></h1>
+  </header>
+
+  <main class="envoltorio">
+
+    <!-- El tablero. Cada casilla lleva un atributo personalizado
+         data-objetivo que el JavaScript usa para encontrarla. -->
+    <section class="tablero" id="tablero" aria-label="Tablero de ouija">
+
+      <div class="superior">
+        <p class="esquina palabra" data-objetivo="SI">
+          <!-- Sol: SVG en línea, decorativo → aria-hidden -->
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="4.5"/>
+            <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/>
+          </svg>
+          Sí
+        </p>
+        <p class="esquina palabra" data-objetivo="NO">
+          No
+          <!-- Luna -->
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <path d="M15.5 2.5a9.5 9.5 0 1 0 6 16.9A8 8 0 1 1 15.5 2.5z"/>
+          </svg>
+        </p>
+      </div>
+
+      <!-- Las letras son listas: un conjunto ordenado de elementos.
+           style="--i:n" pasa la posición al CSS para dibujar el arco. -->
+      <ul class="fila fila-1" aria-label="Letras de la A a la M">
+        <li data-objetivo="A" style="--i:0">A</li>
+        <li data-objetivo="B" style="--i:1">B</li>
+        <li data-objetivo="C" style="--i:2">C</li>
+        <li data-objetivo="D" style="--i:3">D</li>
+        <li data-objetivo="E" style="--i:4">E</li>
+        <li data-objetivo="F" style="--i:5">F</li>
+        <li data-objetivo="G" style="--i:6">G</li>
+        <li data-objetivo="H" style="--i:7">H</li>
+        <li data-objetivo="I" style="--i:8">I</li>
+        <li data-objetivo="J" style="--i:9">J</li>
+        <li data-objetivo="K" style="--i:10">K</li>
+        <li data-objetivo="L" style="--i:11">L</li>
+        <li data-objetivo="M" style="--i:12">M</li>
+      </ul>
+
+      <ul class="fila fila-2" aria-label="Letras de la N a la Z">
+        <li data-objetivo="N" style="--i:0">N</li>
+        <li data-objetivo="Ñ" style="--i:1">Ñ</li>
+        <li data-objetivo="O" style="--i:2">O</li>
+        <li data-objetivo="P" style="--i:3">P</li>
+        <li data-objetivo="Q" style="--i:4">Q</li>
+        <li data-objetivo="R" style="--i:5">R</li>
+        <li data-objetivo="S" style="--i:6">S</li>
+        <li data-objetivo="T" style="--i:7">T</li>
+        <li data-objetivo="U" style="--i:8">U</li>
+        <li data-objetivo="V" style="--i:9">V</li>
+        <li data-objetivo="W" style="--i:10">W</li>
+        <li data-objetivo="X" style="--i:11">X</li>
+        <li data-objetivo="Y" style="--i:12">Y</li>
+        <li data-objetivo="Z" style="--i:13">Z</li>
+      </ul>
+
+      <ul class="numeros" aria-label="Números">
+        <li data-objetivo="1">1</li>
+        <li data-objetivo="2">2</li>
+        <li data-objetivo="3">3</li>
+        <li data-objetivo="4">4</li>
+        <li data-objetivo="5">5</li>
+        <li data-objetivo="6">6</li>
+        <li data-objetivo="7">7</li>
+        <li data-objetivo="8">8</li>
+        <li data-objetivo="9">9</li>
+        <li data-objetivo="0">0</li>
+      </ul>
+
+      <div class="inferior">
+        <p class="palabra" data-objetivo="ADIOS">Adiós</p>
+      </div>
+
+      <!-- La planchette es un <button>: es un control interactivo,
+           así recibe foco con el teclado sin trucos. -->
+      <button type="button" class="planchette" id="planchette"
+              aria-label="Planchette. Arrástrala o muévela con las flechas">
+        <svg viewBox="0 0 100 120" aria-hidden="true">
+          <defs>
+            <radialGradient id="hueso" cx="40%" cy="38%" r="75%">
+              <stop offset="0" stop-color="#f7ecd6"/>
+              <stop offset=".65" stop-color="#d8bf95"/>
+              <stop offset="1" stop-color="#a0815a"/>
+            </radialGradient>
+          </defs>
+          <!-- fill-rule="evenodd" recorta el agujero de la lente -->
+          <path fill="url(#hueso)" fill-rule="evenodd" stroke="#5a3a20" stroke-width="2"
+                d="M50 3 C66 27 96 45 96 75 C96 101 76 117 50 117 C24 117 4 101 4 75 C4 45 34 27 50 3 Z
+                   M50 54 A16 16 0 1 0 50.01 54 Z"/>
+          <circle cx="50" cy="70" r="16" fill="rgba(255,236,200,.14)" stroke="#8a6a3a" stroke-width="3"/>
+          <circle cx="50" cy="70" r="12.5" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1"/>
+          <circle cx="50" cy="22" r="2.2" fill="#5a3a20"/>
+        </svg>
+      </button>
+    </section>
+
+    <section class="consulta" aria-labelledby="titulo-consulta">
+      <h2 id="titulo-consulta" class="visualmente-oculto">Mensaje del espíritu</h2>
+
+      <button type="button" class="invocar" id="invocar">
+        <svg viewBox="0 0 24 32" aria-hidden="true">
+          <path fill="currentColor" d="M12 1c1 4 6 7 6 13a6 6 0 0 1-12 0c0-2 1-3.500 2-4.500.2 1.800 1 2.800 2 3C9.500 8 11 5 12 1z"/>
+          <rect x="8" y="22" width="8" height="9" rx="1.200" fill="currentColor" opacity=".55"/>
+        </svg>
+        Invocar al espíritu
+      </button>
+
+      <!-- Pergamino enrollado: al invocar al espíritu se desenrolla -->
+      <div class="pergamino" id="pergamino">
+        <div class="rodillo"></div>
+        <div class="hoja">
+          <div class="hoja-interior">
+            <output class="mensaje" id="mensaje" aria-live="polite"></output>
+          </div>
+        </div>
+        <div class="rodillo"></div>
+      </div>
+
+      <p class="estado" id="estado" role="status"></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Trabajo desarrollado por [tu nombre]</p>
+  </footer>
+
+</div>
+
+<script>
+  /* =========================================================
+     JAVASCRIPT: la "magia" de la ouija
+     ========================================================= */
+  document.documentElement.lang = 'es';
+
+  const tablero    = document.getElementById('tablero');
+  const planchette = document.getElementById('planchette');
+  const mensaje    = document.getElementById('mensaje');
+  const estado     = document.getElementById('estado');
+
+  // Todas las casillas con data-objetivo, indexadas por su valor
+  const objetivos = {};
+  document.querySelectorAll('[data-objetivo]').forEach(el => {
+    objetivos[el.dataset.objetivo] = el;
+  });
+
+  const MOV_REDUCIDO = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const DURACION = MOV_REDUCIDO ? 150 : 1000;  // ms que tarda en desplazarse
+  const PAUSA    = MOV_REDUCIDO ? 300 : 650;   // ms que se queda sobre la letra
+  const LENTE_Y  = 70 / 120;                   // centro de la lente dentro del SVG
+  planchette.style.setProperty('--dur', DURACION + 'ms');
+
+  let enDestino = null;  // casilla actual (null = reposo)
+  let pos = { x: 0, y: 0 };
+
+  const espera = ms => new Promise(r => setTimeout(r, ms));
+  const azar = lista => lista[Math.floor(Math.random() * lista.length)];
+  const entre = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+  // ---------- Geometría ----------
+  function centroDe(el) {
+    const t = tablero.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2 - t.left, y: r.top + r.height / 2 - t.top };
+  }
+  function puntoReposo() {
+    const arriba = centroDe(objetivos['5']).y;
+    const abajo = centroDe(objetivos.ADIOS).y;
+    return { x: tablero.clientWidth / 2, y: (arriba + abajo) / 2 };
+  }
+  function colocar(p, animar = true, giro = 0) {
+    const w = planchette.offsetWidth, h = planchette.offsetHeight;
+    planchette.style.transition = animar ? '' : 'none';
+    planchette.style.transform =
+      `translate(${p.x - w / 2}px, ${p.y - h * LENTE_Y}px) rotate(${giro}deg)`;
+    pos = p;
+  }
+
+  function marcar(el) {
+    document.querySelectorAll('.tablero .activa').forEach(x => x.classList.remove('activa'));
+    if (el) el.classList.add('activa');
+  }
+
+
+  // Texto que se lee al enfocar casillas especiales con el teclado
+  const ETIQUETA = { SI: 'SÍ', NO: 'NO', ADIOS: 'ADIÓS' };
+
+
+  // ---------- Modo manual: arrastrar ----------
+  let arrastrando = false, desfase = { x: 0, y: 0 }, bajoLente = null;
+
+  function puntoDelTablero(e) {
+    const t = tablero.getBoundingClientRect();
+    return { x: e.clientX - t.left, y: e.clientY - t.top };
+  }
+  function limitar(p) {
+    return {
+      x: Math.min(Math.max(p.x, 0), tablero.clientWidth),
+      y: Math.min(Math.max(p.y, 0), tablero.clientHeight)
+    };
+  }
+  function casillaCercana(p) {
+    const radio = planchette.offsetWidth * 0.32;
+    let mejor = null, dist = Infinity;
+    for (const el of Object.values(objetivos)) {
+      const c = centroDe(el);
+      const d = Math.hypot(c.x - p.x, c.y - p.y);
+      if (d < dist) { dist = d; mejor = el; }
+    }
+    return dist <= radio ? mejor : null;
+  }
+  // La casilla bajo la lente se ilumina mientras arrastras
+  function revisarLente() {
+    const el = casillaCercana(pos);
+    if (el === bajoLente) return;
+    bajoLente = el;
+    marcar(el);
+  }
+
+  planchette.addEventListener('pointerdown', (e) => {
+    arrastrando = true;
+    planchette.setPointerCapture(e.pointerId);
+    const p = puntoDelTablero(e);
+    desfase = { x: pos.x - p.x, y: pos.y - p.y };
+  });
+  planchette.addEventListener('pointermove', (e) => {
+    if (!arrastrando) return;
+    const p = puntoDelTablero(e);
+    colocar(limitar({ x: p.x + desfase.x, y: p.y + desfase.y }), false);
+    revisarLente();
+  });
+  function soltar() {
+    if (!arrastrando) return;
+    arrastrando = false;
+    bajoLente = null;
+    enDestino = casillaCercana(pos);
+    marcar(null);
+  }
+  planchette.addEventListener('pointerup', soltar);
+  planchette.addEventListener('pointercancel', soltar);
+
+  // ---------- El botón del espíritu ----------
+  const invocar = document.getElementById('invocar');
+  let apagaSala = null;
+
+  const pergamino = document.getElementById('pergamino');
+
+  invocar.addEventListener('click', () => {
+    // Enrolla el pergamino y lo vuelve a abrir, aunque se pulse varias veces
+    pergamino.classList.remove('abierto');
+    mensaje.textContent = '';
+    void pergamino.offsetWidth;
+    mensaje.textContent = 'La letra que buscáis es la M';
+    pergamino.classList.add('abierto');
+
+    document.body.classList.add('respondiendo');
+    clearTimeout(apagaSala);
+    apagaSala = setTimeout(() => document.body.classList.remove('respondiendo'), 4500);
+  });
+
+  // ---------- Modo manual: teclado ----------
+  planchette.addEventListener('keydown', (e) => {
+    const paso = tablero.clientWidth * 0.03;
+    const mov = { ArrowLeft: [-paso, 0], ArrowRight: [paso, 0], ArrowUp: [0, -paso], ArrowDown: [0, paso] }[e.key];
+    if (!mov) return;
+    e.preventDefault();
+    colocar(limitar({ x: pos.x + mov[0], y: pos.y + mov[1] }), false);
+    const el = casillaCercana(pos);
+    marcar(el);
+    enDestino = el;
+    estado.textContent = el ? `Bajo la lente: ${ETIQUETA[el.dataset.objetivo] || el.dataset.objetivo}` : '';
+  });
+
+  // ---------- Inicio y redimensionado ----------
+  function recolocar() {
+    colocar(enDestino ? centroDe(enDestino) : puntoReposo(), false);
+  }
+  addEventListener('resize', () => { if (!arrastrando) recolocar(); });
+  // Espera a que carguen las fuentes para medir bien las letras
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(recolocar);
+  recolocar();
+</script>
+</body>
+</html>
